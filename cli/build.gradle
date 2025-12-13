@@ -13,11 +13,14 @@ dependencies {
     // CLI framework
     implementation "info.picocli:picocli:4.7.6"
 
-    // Logging implementation (CLI is the runtime boundary)
-    runtimeOnly "ch.qos.logback:logback-classic:1.5.18"
+    implementation platform("com.fasterxml.jackson:jackson-bom:2.20.1")
+    implementation "com.fasterxml.jackson.core:jackson-databind"
 
     implementation project(":core")
     implementation project(":utilities")
+
+    // Logging implementation (CLI is the runtime boundary)
+    runtimeOnly "ch.qos.logback:logback-classic:1.5.18"
 }
 
 tasks.withType(JavaCompile).configureEach {
