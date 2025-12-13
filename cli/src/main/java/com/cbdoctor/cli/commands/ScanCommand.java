@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.Callable;
 
 /**
  * Scans a Couchbase cluster via the Management REST API and prints a report.
@@ -25,7 +26,7 @@ import java.util.Optional;
         name = "scan",
         description = "Scan a Couchbase cluster and report health and risks."
 )
-public final class ScanCommand implements Runnable {
+public final class ScanCommand implements Callable<Integer> {
 
     @Option(names = {"--conn"}, required = true, description = "Connection string (e.g. http://localhost:8091 or couchbase://host)")
     private String conn;
@@ -41,7 +42,7 @@ public final class ScanCommand implements Runnable {
     private String format;
 
     @Override
-    public void run() {
+    public Integer call() {
         try {
             char[] pass = resolvePassword();
 
@@ -54,10 +55,10 @@ public final class ScanCommand implements Runnable {
 
             printReport(report, format);
 
-            System.exit(exitCode(report));
+            return calculateExitCode(report);
         } catch (Exception e) {
             System.err.println("ERROR: " + e.getMessage());
-            System.exit(3);
+            return 3;
         }
     }
 
@@ -118,16 +119,6 @@ public final class ScanCommand implements Runnable {
         }
     }
 
-    private static int exitCode(Report report) {
-        boolean hasHigh = report.findings().stream().anyMatch(f -> f.severity() == Severity.HIGH);
-        if (hasHigh) return 2;
-
-        boolean hasMedium = report.findings().stream().anyMatch(f -> f.severity() == Severity.MEDIUM);
-        if (hasMedium) return 1;
-
-        return 0;
-    }
-
     private static int severityRank(Severity s) {
         return switch (s) {
             case CRITICAL -> 0;
@@ -137,4 +128,17 @@ public final class ScanCommand implements Runnable {
             case SKIPPED -> 4;
         };
     }
+
+    private static int calculateExitCode(Report report) {
+        if (report == null || report.findings() == null) {
+            return 0;
+        }
+
+        if (report.hasHighSeverity()) return 2;
+
+        if (report.hasMediumSeverity()) return 1;
+
+        return 0;
+    }
+
 }
