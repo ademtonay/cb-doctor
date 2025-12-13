@@ -1,0 +1,19 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.cb-doctor'
+version = rootProject.version
+
+dependencies {
+    implementation project(":utilities")
+
+    // HTTP
+    implementation "com.squareup.okhttp3:okhttp:5.3.2"
+
+    // JSON (central versioning with BOM)
+    implementation platform("com.fasterxml.jackson:jackson-bom:2.20.1")
+    implementation "com.fasterxml.jackson.core:jackson-databind"
+
+    // Logging API
+    api "org.slf4j:slf4j-api:2.0.17"}

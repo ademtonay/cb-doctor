@@ -1,0 +1,4 @@
+rootProject.name = 'cb-doctor'
+include 'utilities'
+include 'core'
+include 'cli'
