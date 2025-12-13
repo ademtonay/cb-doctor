@@ -1,11 +1,25 @@
 plugins {
-    id 'java'
+    id 'application'
 }
 
 group = 'com.cb-doctor'
 version = rootProject.version
 
+application {
+    mainClass = 'com.cbdoctor.cli.CbDoctorCli'
+}
+
 dependencies {
+    // CLI framework
+    implementation "info.picocli:picocli:4.7.6"
+
+    // Logging implementation (CLI is the runtime boundary)
+    runtimeOnly "ch.qos.logback:logback-classic:1.5.18"
+
     implementation project(":core")
     implementation project(":utilities")
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
 }
