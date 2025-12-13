@@ -1,5 +1,6 @@
 package com.cbdoctor.cli.commands;
 
+import com.cbdoctor.cli.commands.utils.ObjectMappers;
 import com.cbdoctor.core.check.*;
 import com.cbdoctor.core.collector.ClusterSnapshot;
 import com.cbdoctor.core.collector.rest.MgmtClusterCollector;
@@ -8,7 +9,6 @@ import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Report;
 import com.cbdoctor.core.model.Severity;
 import com.cbdoctor.core.engine.CheckEngine;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
@@ -91,8 +91,7 @@ public final class ScanCommand implements Runnable {
     private static void printReport(Report report, String format) throws Exception {
         String f = (format == null) ? "table" : format.trim().toLowerCase(Locale.ROOT);
         if ("json".equals(f)) {
-            ObjectMapper mapper = new ObjectMapper();
-            System.out.println(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(report));
+            System.out.println(ObjectMappers.JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report));
         } else {
             printTable(report);
         }
