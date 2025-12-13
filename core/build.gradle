@@ -16,4 +16,10 @@ dependencies {
     implementation "com.fasterxml.jackson.core:jackson-databind"
 
     // Logging API
-    api "org.slf4j:slf4j-api:2.0.17"}
+    api "org.slf4j:slf4j-api:2.0.17"
+
+    testImplementation "org.junit.jupiter:junit-jupiter"
+    testImplementation "com.squareup.okhttp3:mockwebserver3:5.3.2"
+
+    testRuntimeOnly "ch.qos.logback:logback-classic:1.5.18"
+}
