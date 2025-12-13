@@ -1,8 +1,9 @@
 package com.cbdoctor.core.collector;
 
+import com.fasterxml.jackson.databind.JsonNode;
+
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 public record ClusterSnapshot(
         String clusterName,
@@ -10,7 +11,7 @@ public record ClusterSnapshot(
         String rebalanceStatus,
         List<NodeInfo> nodes,
         List<BucketInfo> buckets,
-        Map<String, Object> raw // fallback / debug / future use
+        JsonNode raw // fallback / debug / future use
 ) {
 
     public boolean hasNodes() {
@@ -28,7 +29,7 @@ public record ClusterSnapshot(
                 null,
                 List.of(),
                 List.of(),
-                Map.of()
+                null
         );
     }
 }

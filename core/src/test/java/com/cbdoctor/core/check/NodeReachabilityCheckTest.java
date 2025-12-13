@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -26,7 +25,7 @@ class NodeReachabilityCheckTest {
                 null,
                 List.of(),
                 List.of(),
-                Map.of()
+                null
         );
 
         NodeReachabilityCheck check = new NodeReachabilityCheck();
@@ -44,7 +43,7 @@ class NodeReachabilityCheckTest {
                         new NodeInfo("n2", null, Set.of("kv"), true, null)
                 ),
                 List.of(),
-                Map.of()
+                null
         );
 
         NodeReachabilityCheck check = new NodeReachabilityCheck();
@@ -62,7 +61,7 @@ class NodeReachabilityCheckTest {
                         new NodeInfo("n2", null, Set.of("kv", "index"), false, null)
                 ),
                 List.of(),
-                Map.of()
+                null
         );
 
         NodeReachabilityCheck check = new NodeReachabilityCheck();
