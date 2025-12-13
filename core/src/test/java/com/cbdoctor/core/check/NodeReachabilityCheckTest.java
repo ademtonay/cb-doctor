@@ -23,6 +23,7 @@ class NodeReachabilityCheckTest {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
+                null,
                 List.of(),
                 List.of(),
                 Map.of()
@@ -37,6 +38,7 @@ class NodeReachabilityCheckTest {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
+                null,
                 List.of(
                         new NodeInfo("n1", null, Set.of("kv"), true, null),
                         new NodeInfo("n2", null, Set.of("kv"), true, null)
@@ -54,6 +56,7 @@ class NodeReachabilityCheckTest {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
+                null,
                 List.of(
                         new NodeInfo("n1", null, Set.of("kv"), true, null),
                         new NodeInfo("n2", null, Set.of("kv", "index"), false, null)

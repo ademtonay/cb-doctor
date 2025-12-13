@@ -7,6 +7,7 @@ import java.util.Map;
 public record ClusterSnapshot(
         String clusterName,
         Instant collectedAt,
+        String rebalanceStatus,
         List<NodeInfo> nodes,
         List<BucketInfo> buckets,
         Map<String, Object> raw // fallback / debug / future use
@@ -24,6 +25,7 @@ public record ClusterSnapshot(
         return new ClusterSnapshot(
                 clusterName,
                 Instant.now(),
+                null,
                 List.of(),
                 List.of(),
                 Map.of()
