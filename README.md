@@ -36,8 +36,11 @@ cbdoctor
 ├── cbdoctor-cli
 │   └── Command-line interface
 │
-└── cbdoctor-api
-    └── REST API
+├── cbdoctor-api
+│   └── REST API
+│
+└── utilities
+    └── Common project utilities library
 ```
 
 
