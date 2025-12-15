@@ -178,3 +178,10 @@ void shouldReturnEmpty_whenNoNodes() {
 3. JSON schema versioning
 4. Pluggable output formats
 5. CI integration examples
+
+## 💖 Support the Project
+
+If you find **cb-doctor** useful, consider supporting its development:
+
+[![Buy Me a Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-support-orange)](https://www.buymeacoffee.com/ademtonay)
+[![GitHub Sponsors](https://img.shields.io/badge/GitHub-Sponsor-ea4aaa?logo=github)](https://github.com/sponsors/ademtonay)
