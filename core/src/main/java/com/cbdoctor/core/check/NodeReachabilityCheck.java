@@ -2,13 +2,13 @@ package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.ClusterSnapshot;
 import com.cbdoctor.core.collector.NodeInfo;
+import com.cbdoctor.core.engine.CheckResult;
 import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -27,10 +27,13 @@ public final class NodeReachabilityCheck implements Check {
     }
 
     @Override
-    public Optional<Finding> run(ClusterSnapshot snapshot) {
+    public CheckResult run(ClusterSnapshot snapshot) {
         if (snapshot == null || snapshot.nodes() == null || snapshot.nodes().isEmpty()) {
-            // Not enough data to evaluate
-            return Optional.empty();
+            return CheckResult.skipped(
+                    id(),
+                    name(),
+                    "Node list is not available; reachability cannot be evaluated."
+            );
         }
 
         List<NodeInfo> unhealthy = snapshot.nodes().stream()
@@ -38,7 +41,7 @@ public final class NodeReachabilityCheck implements Check {
                 .toList();
 
         if (unhealthy.isEmpty()) {
-            return Optional.empty();
+            return CheckResult.pass();
         }
 
         String affected = unhealthy.stream()
@@ -54,7 +57,7 @@ public final class NodeReachabilityCheck implements Check {
                 ))
                 .toList());
 
-        return Optional.of(new Finding(
+        return CheckResult.finding(new Finding(
                 id(),
                 Severity.HIGH,
                 name(),

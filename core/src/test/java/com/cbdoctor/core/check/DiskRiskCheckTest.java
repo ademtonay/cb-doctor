@@ -18,7 +18,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class DiskRiskCheckTest {
 
     @Test
-    void shouldReturnEmpty_whenNoNodes() {
+    void shouldSkip_whenSnapshotIsNull() {
+        CheckAssertions.assertSkipped(new DiskRiskCheck().run(null));
+    }
+
+    @Test
+    void shouldSkip_whenNoNodes() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -28,11 +33,11 @@ class DiskRiskCheckTest {
                 null
         );
 
-        assertTrue(new DiskRiskCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertSkipped(new DiskRiskCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnEmpty_whenNoDiskMetricsPresent() {
+    void shouldSkip_whenNoDiskMetricsPresent() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -45,11 +50,11 @@ class DiskRiskCheckTest {
                 null
         );
 
-        assertTrue(new DiskRiskCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertSkipped(new DiskRiskCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnEmpty_whenDiskBelowThreshold() {
+    void shouldPass_whenDiskBelowThreshold() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -62,8 +67,27 @@ class DiskRiskCheckTest {
                 null
         );
 
-        assertTrue(new DiskRiskCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertPass(new DiskRiskCheck().run(snapshot));
     }
+
+    @Test
+    void shouldPass_whenDiskEqualsThreshold() {
+        ClusterSnapshot snapshot = new ClusterSnapshot(
+                "test",
+                Instant.now(),
+                "none",
+                List.of(
+                        new NodeInfo("n1", null, Set.of("kv"), true, 80.0),
+                        new NodeInfo("n2", null, Set.of("kv"), true, 10.0)
+                ),
+                List.of(),
+                null
+        );
+
+        Finding finding = CheckAssertions.assertFinding(new DiskRiskCheck().run(snapshot), Severity.MEDIUM);
+        assertTrue(finding.message().contains("n1"));
+    }
+
 
     @Test
     void shouldReturnMedium_whenDiskAboveThreshold() {
@@ -79,8 +103,25 @@ class DiskRiskCheckTest {
                 null
         );
 
-        Finding finding = new DiskRiskCheck().run(snapshot).orElseThrow();
-        assertEquals(Severity.MEDIUM, finding.severity());
+        Finding finding = CheckAssertions.assertFinding(new DiskRiskCheck().run(snapshot), Severity.MEDIUM);
         assertTrue(finding.message().contains("n1"));
+    }
+
+    @Test
+    void shouldEvaluateUsingAvailableMetrics_whenSomeNodesMissingMetrics() {
+        ClusterSnapshot snapshot = new ClusterSnapshot(
+                "test",
+                Instant.now(),
+                "none",
+                List.of(
+                        new NodeInfo("n1", null, Set.of("kv"), true, null),
+                        new NodeInfo("n2", null, Set.of("kv"), true, 85.0)
+                ),
+                List.of(),
+                null
+        );
+
+        Finding finding = CheckAssertions.assertFinding(new DiskRiskCheck().run(snapshot), Severity.MEDIUM);
+        assertTrue(finding.message().contains("n2"));
     }
 }

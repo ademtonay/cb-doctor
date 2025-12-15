@@ -10,6 +10,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class CheckEngine {
     private final List<Check> checks;
@@ -23,34 +24,41 @@ public final class CheckEngine {
     }
 
     public Report run(String clusterName, ClusterSnapshot snapshot) {
-        List<Finding> findings = new ArrayList<>();
+        List<CheckResult> findings = new ArrayList<>();
 
         for (Check check : checks) {
             try {
-                check.run(snapshot).ifPresentOrElse(
-                        findings::add,
-                        () -> {
-                            if (emitSkipped) {
-                                findings.add(new Finding(
-                                        check.id(),
-                                        Severity.SKIPPED,
-                                        check.name(),
-                                        "Check skipped (insufficient data).",
-                                        java.util.Map.of(),
-                                        "Ensure required endpoints/metrics are accessible and retry."
-                                ));
-                            }
+                CheckResult result = check.run(snapshot);
+
+                if (result == null || result.status() == null) {
+                    continue;
+                }
+
+                switch (result.status()) {
+                    case PASS -> {
+                        // Do nothing
+                    }
+                    case SKIPPED -> {
+                        if (emitSkipped && result.finding() != null) {
+                            findings.add(result);
                         }
-                );
+                    }
+                    case FINDING -> {
+                        if (result.finding() != null) {
+                            findings.add(result);
+                        }
+                    }
+                }
             } catch (Exception e) {
-                // Fail-safe: report as HIGH (tool should not crash silently)
-                findings.add(new Finding(
-                        check.id(),
-                        Severity.HIGH,
-                        check.name(),
-                        "Check failed with exception: " + e.getClass().getSimpleName(),
-                        java.util.Map.of("error", e.getMessage() == null ? "" : e.getMessage()),
-                        "Inspect logs / connectivity and retry."
+                findings.add(CheckResult.finding(
+                        new Finding(
+                                check.id(),
+                                Severity.HIGH,
+                                check.name(),
+                                "Check failed with exception: " + e.getClass().getSimpleName(),
+                                Map.of("error", e.getMessage() == null ? "" : e.getMessage()),
+                                "Inspect logs / connectivity and retry."
+                        )
                 ));
             }
         }

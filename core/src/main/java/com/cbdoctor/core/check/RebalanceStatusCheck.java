@@ -1,12 +1,12 @@
 package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.ClusterSnapshot;
+import com.cbdoctor.core.engine.CheckResult;
 import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * Flags potentially risky rebalance states based on /pools/default rebalanceStatus.
@@ -24,26 +24,28 @@ public final class RebalanceStatusCheck implements Check {
     }
 
     @Override
-    public Optional<Finding> run(ClusterSnapshot snapshot) {
-        if (snapshot == null) return Optional.empty();
+    public CheckResult run(ClusterSnapshot snapshot) {
+        if (snapshot == null) {
+            return CheckResult.skipped(id(), name(), "Snapshot is not available; rebalance status cannot be evaluated.");
+        }
 
         String status = snapshot.rebalanceStatus();
         if (status == null || status.isBlank()) {
-            // Not enough data to evaluate reliably
-            return Optional.empty();
+            return CheckResult.skipped(id(), name(), "rebalanceStatus is missing; rebalance status cannot be evaluated reliably.");
         }
 
         String normalized = status.trim().toLowerCase();
 
+        // Rebalance not running -> PASS
         if ("none".equals(normalized)) {
-            return Optional.empty();
+            return CheckResult.pass();
         }
 
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("rebalanceStatus", status);
 
         if ("running".equals(normalized)) {
-            return Optional.of(new Finding(
+            return CheckResult.finding(new Finding(
                     id(),
                     Severity.MEDIUM,
                     name(),
@@ -54,7 +56,7 @@ public final class RebalanceStatusCheck implements Check {
         }
 
         // Best-effort: Couchbase versions/editions may return different values.
-        return Optional.of(new Finding(
+        return CheckResult.finding(new Finding(
                 id(),
                 Severity.MEDIUM,
                 name(),

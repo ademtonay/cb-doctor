@@ -2,6 +2,7 @@ package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.BucketInfo;
 import com.cbdoctor.core.collector.ClusterSnapshot;
+import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 import org.junit.jupiter.api.Test;
 
@@ -16,7 +17,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class ReplicaCoverageCheckTest {
 
     @Test
-    void shouldReturnEmpty_whenNoBuckets() {
+    void shouldSkip_whenSnapshotIsNull() {
+        CheckAssertions.assertSkipped(new ReplicaCoverageCheck().run(null));
+    }
+
+    @Test
+    void shouldSkip_whenNoBuckets() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -26,11 +32,11 @@ class ReplicaCoverageCheckTest {
                 null
         );
 
-        assertTrue(new ReplicaCoverageCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertSkipped(new ReplicaCoverageCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnEmpty_whenAllBucketsHaveReplicas() {
+    void shouldPass_whenAllBucketsHaveReplicas() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -43,11 +49,11 @@ class ReplicaCoverageCheckTest {
                 null
         );
 
-        assertTrue(new ReplicaCoverageCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertPass(new ReplicaCoverageCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnHigh_whenAnyBucketHasZeroReplicas() {
+    void shouldReturnCritical_whenAnyBucketHasZeroReplicas() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -60,8 +66,11 @@ class ReplicaCoverageCheckTest {
                 null
         );
 
-        var finding = new ReplicaCoverageCheck().run(snapshot).orElseThrow();
-        assertEquals(Severity.CRITICAL, finding.severity());
+        Finding finding = CheckAssertions.assertFinding(
+                new ReplicaCoverageCheck().run(snapshot),
+                Severity.CRITICAL
+        );
+
         assertTrue(finding.message().contains("events"));
 
         Object count = finding.evidence().get("bucketCountWithZeroReplicas");

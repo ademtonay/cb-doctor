@@ -1,6 +1,6 @@
 services:
   couchbase:
-    image: couchbase:community
+    image: couchbase
     container_name: cb
     hostname: cb
     restart: unless-stopped

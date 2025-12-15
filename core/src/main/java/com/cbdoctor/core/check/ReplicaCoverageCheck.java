@@ -2,17 +2,17 @@ package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.BucketInfo;
 import com.cbdoctor.core.collector.ClusterSnapshot;
+import com.cbdoctor.core.engine.CheckResult;
 import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
- * Reports a HIGH finding when one or more buckets have replicaNumber == 0.
+ * Reports a CRITICAL finding when one or more buckets have replicaNumber == 0.
  * Replica count is a critical durability setting for production clusters.
  */
 public final class ReplicaCoverageCheck implements Check {
@@ -28,10 +28,13 @@ public final class ReplicaCoverageCheck implements Check {
     }
 
     @Override
-    public Optional<Finding> run(ClusterSnapshot snapshot) {
+    public CheckResult run(ClusterSnapshot snapshot) {
         if (snapshot == null || snapshot.buckets() == null || snapshot.buckets().isEmpty()) {
-            // Not enough data to evaluate
-            return Optional.empty();
+            return CheckResult.skipped(
+                    id(),
+                    name(),
+                    "Bucket list is not available; replica coverage cannot be evaluated."
+            );
         }
 
         List<BucketInfo> zeroReplicaBuckets = snapshot.buckets().stream()
@@ -39,7 +42,7 @@ public final class ReplicaCoverageCheck implements Check {
                 .toList();
 
         if (zeroReplicaBuckets.isEmpty()) {
-            return Optional.empty();
+            return CheckResult.pass();
         }
 
         String bucketNames = zeroReplicaBuckets.stream()
@@ -55,7 +58,7 @@ public final class ReplicaCoverageCheck implements Check {
                 ))
                 .toList());
 
-        return Optional.of(new Finding(
+        return CheckResult.finding(new Finding(
                 id(),
                 Severity.CRITICAL,
                 name(),

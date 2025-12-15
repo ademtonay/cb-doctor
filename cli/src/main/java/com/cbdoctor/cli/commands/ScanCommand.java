@@ -5,19 +5,18 @@ import com.cbdoctor.core.check.*;
 import com.cbdoctor.core.collector.ClusterSnapshot;
 import com.cbdoctor.core.collector.rest.MgmtClusterCollector;
 import com.cbdoctor.core.collector.rest.MgmtRestClient;
+import com.cbdoctor.core.engine.CheckEngine;
+import com.cbdoctor.core.engine.CheckResult;
 import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Report;
 import com.cbdoctor.core.model.Severity;
-import com.cbdoctor.core.engine.CheckEngine;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
 
 import java.time.Clock;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.stream.Collectors;
 
 /**
  * Scans a Couchbase cluster via the Management REST API and prints a report.
@@ -28,18 +27,26 @@ import java.util.concurrent.Callable;
 )
 public final class ScanCommand implements Callable<Integer> {
 
-    @Option(names = {"--conn"}, required = true, description = "Connection string (e.g. http://localhost:8091 or couchbase://host)")
+    @Option(names = {"--conn"}, required = true,
+            description = "Connection string (e.g. http://localhost:8091 or couchbase://host)")
     private String conn;
 
     @Option(names = {"--username"}, required = true, description = "Couchbase username")
     private String username;
 
-    @Option(names = {"--password"}, interactive = true, arity = "0..1",
-            description = "Prompt for password (recommended). If omitted, CB_PASSWORD env will be used if present.")
+    @Option(
+            names = {"--password"},
+            interactive = true,
+            arity = "0..1",
+            description = "Prompt for password (recommended). If omitted, CB_PASSWORD env will be used if present."
+    )
     private char[] password;
 
     @Option(names = {"--format"}, defaultValue = "table", description = "Output format: table|json")
     private String format;
+
+    @Option(names = "--verbose", description = "Show PASS results for checks with no findings.")
+    private boolean verbose;
 
     @Override
     public Integer call() {
@@ -51,31 +58,38 @@ public final class ScanCommand implements Callable<Integer> {
 
             ClusterSnapshot snapshot = collector.collect();
 
-            Report report = getReport(snapshot);
+            List<Check> checks = defaultChecks();
+            Report report = runChecks(snapshot, checks);
 
-            printReport(report, format);
+            printReport(report, checks, format, verbose);
 
             return calculateExitCode(report);
         } catch (Exception e) {
             System.err.println("ERROR: " + e.getMessage());
+            e.printStackTrace(System.err);
             return 3;
         }
     }
 
-    private static Report getReport(ClusterSnapshot snapshot) {
+    private static List<Check> defaultChecks() {
+        return List.of(
+                new NodeReachabilityCheck(),
+                new RebalanceStatusCheck(),
+                new ReplicaCoverageCheck(),
+                new ServiceDistributionCheck(),
+                new DiskRiskCheck()
+        );
+    }
+
+    private static Report runChecks(ClusterSnapshot snapshot, List<Check> checks) {
         CheckEngine engine = new CheckEngine(
-                List.of(
-                        new NodeReachabilityCheck(),
-                        new RebalanceStatusCheck(),
-                        new ReplicaCoverageCheck(),
-                        new ServiceDistributionCheck(),
-                        new DiskRiskCheck()
-                ),
+                checks,
                 Clock.systemUTC(),
                 true // emitSkipped
         );
 
-        return engine.run(Optional.ofNullable(snapshot.clusterName()).orElse("cluster"), snapshot);
+        String clusterName = Optional.ofNullable(snapshot.clusterName()).orElse("cluster");
+        return engine.run(clusterName, snapshot);
     }
 
     private char[] resolvePassword() {
@@ -89,33 +103,73 @@ public final class ScanCommand implements Callable<Integer> {
         throw new IllegalArgumentException("Password not provided. Use --password or set CB_PASSWORD.");
     }
 
-    private static void printReport(Report report, String format) throws Exception {
+    private static void printReport(Report report, List<Check> checks, String format, boolean verbose) throws Exception {
         String f = (format == null) ? "table" : format.trim().toLowerCase(Locale.ROOT);
         if ("json".equals(f)) {
             System.out.println(ObjectMappers.JSON.writerWithDefaultPrettyPrinter().writeValueAsString(report));
         } else {
-            printTable(report);
+            printTable(report, checks, verbose);
         }
     }
 
-    private static void printTable(Report report) {
-        List<Finding> findings = report.findings().stream()
-                .sorted(Comparator.comparing((Finding f) -> severityRank(f.severity()))
-                        .thenComparing(Finding::id))
+    private static void printTable(Report report, List<Check> checks, boolean verbose) {
+        List<CheckResult> results = (report == null || report.findings() == null)
+                ? List.of()
+                : report.findings().stream()
+                .filter(Objects::nonNull)
+                .sorted(Comparator
+                        .comparing((CheckResult r) -> severityRank(r.finding().severity()))
+                        .thenComparing(r -> r.finding().id())
+                )
                 .toList();
 
-        if (findings.isEmpty()) {
-            System.out.println("No findings.");
-            return;
+        boolean hasAnyOutput = !results.isEmpty();
+
+        if (hasAnyOutput || verbose) {
+            System.out.printf("%-8s | %-22s | %s%n", "SEVERITY", "CHECK", "MESSAGE");
+            System.out.println("--------------------------------------------------------------------------------");
         }
 
-        System.out.printf("%-8s | %-22s | %s%n", "SEVERITY", "CHECK", "MESSAGE");
-        System.out.println("--------------------------------------------------------------------------------");
-        for (Finding f : findings) {
-            System.out.printf("%-8s | %-22s | %s%n",
-                    f.severity(),
-                    f.id(),
-                    f.message());
+        for (CheckResult r : results) {
+            Finding finding = r.finding();
+            System.out.printf(
+                    "%-8s | %-22s | %s%n",
+                    finding.severity(),
+                    finding.id(),
+                    finding.message()
+            );
+        }
+
+        if (verbose) {
+            printPassedChecks(report, checks);
+        } else if (!hasAnyOutput) {
+            System.out.println("No findings.");
+        }
+    }
+
+    /**
+     * Prints "OK" rows for checks that produced no findings.
+     * A check is considered PASS if its id is not present in Report.findings().
+     */
+    private static void printPassedChecks(Report report, List<Check> checks) {
+        Set<String> reportedIds = (report == null || report.findings() == null)
+                ? Set.of()
+                : report.findings().stream()
+                .filter(Objects::nonNull)
+                .map(r -> r.finding().id())
+                .collect(Collectors.toSet());
+
+        for (Check check : checks) {
+            if (check == null) continue;
+
+            if (!reportedIds.contains(check.id())) {
+                System.out.printf(
+                        "%-8s | %-22s | %s%n",
+                        "OK",
+                        check.id(),
+                        "Check passed"
+                );
+            }
         }
     }
 
@@ -140,5 +194,4 @@ public final class ScanCommand implements Callable<Integer> {
 
         return 0;
     }
-
 }

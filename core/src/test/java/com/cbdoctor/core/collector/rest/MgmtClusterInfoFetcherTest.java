@@ -28,6 +28,7 @@ class MgmtClusterInfoFetcherTest {
 
     @Test
     void fetch_shouldParseClusterNameNodesAndRebalanceStatus() {
+        // 1) /pools/default
         server.enqueue(new MockResponse.Builder()
                 .code(200)
                 .addHeader("Content-Type", "application/json")
@@ -37,17 +38,47 @@ class MgmtClusterInfoFetcherTest {
                       "rebalanceStatus": "none",
                       "nodes": [
                         {
+                          "otpNode": "ns_1@127.0.0.1",
                           "hostname": "127.0.0.1:8091",
                           "status": "healthy",
-                          "services": ["kv", "n1ql"],
-                          "systemStats": { "diskUsedPercent": 12.5 }
+                          "services": ["kv", "n1ql"]
                         },
                         {
+                          "otpNode": "ns_1@127.0.0.2",
                           "hostname": "127.0.0.2:8091",
                           "status": "unhealthy",
                           "services": ["index"]
                         }
                       ]
+                    }
+                """)
+                .build());
+
+        // 2) /nodes/ns_1%40127.0.0.1 (disk metrics for first node)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
+                .addHeader("Content-Type", "application/json")
+                .body("""
+                    {
+                      "otpNode": "ns_1@127.0.0.1",
+                      "hostname": "127.0.0.1:8091",
+                      "availableStorage": {
+                        "hdd": [
+                          { "path": "/opt/couchbase/var", "sizeKBytes": 1000, "usagePercent": 12.5 }
+                        ]
+                      }
+                    }
+                """)
+                .build());
+
+        // 3) /nodes/ns_1%40127.0.0.2 (second node - no disk info)
+        server.enqueue(new MockResponse.Builder()
+                .code(200)
+                .addHeader("Content-Type", "application/json")
+                .body("""
+                    {
+                      "otpNode": "ns_1@127.0.0.2",
+                      "hostname": "127.0.0.2:8091"
                     }
                 """)
                 .build());
@@ -72,6 +103,7 @@ class MgmtClusterInfoFetcherTest {
         assertEquals(12.5, n0.diskUsedPercent());
 
         NodeInfo n1 = info.nodes().get(1);
+        assertEquals("127.0.0.2", n1.hostname());
         assertFalse(n1.healthy());
         assertTrue(n1.services().contains("index"));
         assertNull(n1.diskUsedPercent());

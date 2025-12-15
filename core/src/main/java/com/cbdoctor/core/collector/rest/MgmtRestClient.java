@@ -10,6 +10,8 @@ import okhttp3.Request;
 import okhttp3.Response;
 
 import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Arrays;
 
@@ -39,10 +41,6 @@ public final class MgmtRestClient {
         return new MgmtRestClient(base, username, password, null, null);
     }
 
-    public HttpUrl baseUrl() {
-        return baseUrl;
-    }
-
     /** GET /pools/default */
     public JsonNode getPoolsDefault() {
         return getJson(path("/pools/default"));
@@ -51,6 +49,19 @@ public final class MgmtRestClient {
     /** GET /pools/default/buckets */
     public JsonNode getBuckets() {
         return getJson(path("/pools/default/buckets"));
+    }
+
+    /**
+     * Fetches node details by otpNode (e.g. "ns_1@127.0.0.1").
+     * This endpoint often includes storage fields such as availableStorage/storageTotals.
+     */
+    public JsonNode getNodeByOtp(String otpNode) {
+        if (otpNode == null || otpNode.isBlank()) {
+            throw new IllegalArgumentException("otpNode is required");
+        }
+
+        String encoded = URLEncoder.encode(otpNode, StandardCharsets.UTF_8);
+        return getJson(path("/nodes/" + encoded));
     }
 
     public JsonNode getJson(HttpUrl url) {

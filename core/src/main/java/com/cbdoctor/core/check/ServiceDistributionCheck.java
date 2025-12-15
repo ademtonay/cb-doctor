@@ -2,6 +2,7 @@ package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.ClusterSnapshot;
 import com.cbdoctor.core.collector.NodeInfo;
+import com.cbdoctor.core.engine.CheckResult;
 import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 
@@ -28,20 +29,36 @@ public final class ServiceDistributionCheck implements Check {
     }
 
     @Override
-    public Optional<Finding> run(ClusterSnapshot snapshot) {
+    public CheckResult run(ClusterSnapshot snapshot) {
         if (snapshot == null || snapshot.nodes() == null || snapshot.nodes().isEmpty()) {
-            return Optional.empty();
+            return CheckResult.skipped(
+                    id(),
+                    name(),
+                    "Node list is not available; service distribution cannot be evaluated."
+            );
         }
 
         List<NodeInfo> nodes = snapshot.nodes().stream()
                 .filter(Objects::nonNull)
                 .toList();
 
-        if (nodes.isEmpty()) return Optional.empty();
+        if (nodes.isEmpty()) {
+            return CheckResult.skipped(
+                    id(),
+                    name(),
+                    "Node list is empty; service distribution cannot be evaluated."
+            );
+        }
 
-        boolean anyServicesPresent = nodes.stream().anyMatch(n -> n.services() != null && !n.services().isEmpty());
+        boolean anyServicesPresent = nodes.stream()
+                .anyMatch(n -> n.services() != null && !n.services().isEmpty());
+
         if (!anyServicesPresent) {
-            return Optional.empty();
+            return CheckResult.skipped(
+                    id(),
+                    name(),
+                    "Node services are not available; service distribution cannot be evaluated."
+            );
         }
 
         // Normalize service names and count per service.
@@ -87,7 +104,7 @@ public final class ServiceDistributionCheck implements Check {
         }
 
         if (issues.isEmpty()) {
-            return Optional.empty();
+            return CheckResult.pass();
         }
 
         Map<String, Object> evidence = new LinkedHashMap<>();
@@ -95,7 +112,7 @@ public final class ServiceDistributionCheck implements Check {
 
         String message = buildMessage(issues);
 
-        return Optional.of(new Finding(
+        return CheckResult.finding(new Finding(
                 id(),
                 Severity.MEDIUM,
                 name(),

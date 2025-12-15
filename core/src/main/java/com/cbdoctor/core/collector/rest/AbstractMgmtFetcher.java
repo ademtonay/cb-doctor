@@ -4,10 +4,44 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 public abstract class AbstractMgmtFetcher<T> {
     protected final MgmtRestClient client;
+
     public abstract T fetch();
 
     protected AbstractMgmtFetcher(MgmtRestClient client) {
         this.client = java.util.Objects.requireNonNull(client, "client is required");
+    }
+
+    protected static Double extractDiskUsedPercent(JsonNode node) {
+        if (node == null) return null;
+
+        JsonNode availableStorage = node.get("availableStorage");
+        if (availableStorage != null) {
+            JsonNode hdd = availableStorage.get("hdd");
+            if (hdd != null && hdd.isArray() && !hdd.isEmpty()) {
+                Double max = null;
+                for (JsonNode entry : hdd) {
+                    Double p = number(entry, "usagePercent");
+                    if (p != null) {
+                        max = (max == null) ? p : Math.max(max, p);
+                    }
+                }
+                if (max != null) return max;
+            }
+        }
+
+        JsonNode storageTotals = node.get("storageTotals");
+        if (storageTotals != null) {
+            JsonNode hddTotals = storageTotals.get("hdd");
+            if (hddTotals != null) {
+                Double used = number(hddTotals, "used");
+                Double total = number(hddTotals, "total");
+                if (used != null && total != null && total > 0) {
+                    return (used / total) * 100.0;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**

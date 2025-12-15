@@ -18,7 +18,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class NodeReachabilityCheckTest {
 
     @Test
-    void shouldReturnEmpty_whenNoNodes() {
+    void shouldSkip_whenSnapshotIsNull() {
+        CheckAssertions.assertSkipped(new NodeReachabilityCheck().run(null));
+    }
+
+    @Test
+    void shouldSkip_whenNoNodes() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -28,12 +33,11 @@ class NodeReachabilityCheckTest {
                 null
         );
 
-        NodeReachabilityCheck check = new NodeReachabilityCheck();
-        assertTrue(check.run(snapshot).isEmpty());
+        CheckAssertions.assertSkipped(new NodeReachabilityCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnEmpty_whenAllNodesHealthy() {
+    void shouldPass_whenAllNodesHealthy() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -46,9 +50,27 @@ class NodeReachabilityCheckTest {
                 null
         );
 
-        NodeReachabilityCheck check = new NodeReachabilityCheck();
-        assertTrue(check.run(snapshot).isEmpty());
+        CheckAssertions.assertPass(new NodeReachabilityCheck().run(snapshot));
     }
+
+    @Test
+    void shouldPass_whenNodesContainNullEntriesButAllRealNodesHealthy() {
+        List<NodeInfo> nodes = new java.util.ArrayList<>();
+        nodes.add(null);
+        nodes.add(new NodeInfo("n1", null, Set.of("kv"), true, null));
+
+        ClusterSnapshot snapshot = new ClusterSnapshot(
+                "test",
+                Instant.now(),
+                null,
+                nodes,
+                List.of(),
+                null
+        );
+
+        CheckAssertions.assertPass(new NodeReachabilityCheck().run(snapshot));
+    }
+
 
     @Test
     void shouldReturnHighFinding_whenAnyNodeUnhealthy() {
@@ -64,11 +86,12 @@ class NodeReachabilityCheckTest {
                 null
         );
 
-        NodeReachabilityCheck check = new NodeReachabilityCheck();
-        Finding finding = check.run(snapshot).orElseThrow();
+        Finding finding = CheckAssertions.assertFinding(
+                new NodeReachabilityCheck().run(snapshot),
+                Severity.HIGH
+        );
 
         assertEquals("NODE_REACHABILITY", finding.id());
-        assertEquals(Severity.HIGH, finding.severity());
         assertTrue(finding.message().contains("n2"));
         assertNotNull(finding.evidence());
         assertEquals(1, ((Number) finding.evidence().get("unhealthyNodeCount")).intValue());

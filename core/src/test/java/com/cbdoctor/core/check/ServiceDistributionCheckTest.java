@@ -19,7 +19,12 @@ import static org.junit.jupiter.api.Assertions.*;
 class ServiceDistributionCheckTest {
 
     @Test
-    void shouldReturnEmpty_whenNoNodes() {
+    void shouldSkip_whenSnapshotIsNull() {
+        CheckAssertions.assertSkipped(new ServiceDistributionCheck().run(null));
+    }
+
+    @Test
+    void shouldSkip_whenNoNodes() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -29,11 +34,11 @@ class ServiceDistributionCheckTest {
                 null
         );
 
-        assertTrue(new ServiceDistributionCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertSkipped(new ServiceDistributionCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnEmpty_whenNoServicesPresent() {
+    void shouldSkip_whenNoServicesPresent() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -46,7 +51,24 @@ class ServiceDistributionCheckTest {
                 null
         );
 
-        assertTrue(new ServiceDistributionCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertSkipped(new ServiceDistributionCheck().run(snapshot));
+    }
+
+    @Test
+    void shouldPass_whenNoServicePlacementIssuesDetected() {
+        ClusterSnapshot snapshot = new ClusterSnapshot(
+                "test",
+                Instant.now(),
+                "none",
+                List.of(
+                        new NodeInfo("n1", null, Set.of("kv", "index"), true, null),
+                        new NodeInfo("n2", null, Set.of("kv", "index"), true, null)
+                ),
+                List.of(),
+                null
+        );
+
+        CheckAssertions.assertPass(new ServiceDistributionCheck().run(snapshot));
     }
 
     @Test
@@ -63,9 +85,14 @@ class ServiceDistributionCheckTest {
                 null
         );
 
-        Finding finding = new ServiceDistributionCheck().run(snapshot).orElseThrow();
-        assertEquals(Severity.MEDIUM, finding.severity());
+        Finding finding = CheckAssertions.assertFinding(
+                new ServiceDistributionCheck().run(snapshot),
+                Severity.MEDIUM
+        );
+
         assertTrue(finding.message().toLowerCase().contains("index"));
+        assertNotNull(finding.evidence());
+        assertNotNull(finding.evidence().get("issues"));
     }
 
     @Test
@@ -82,10 +109,13 @@ class ServiceDistributionCheckTest {
                 null
         );
 
-        Finding finding = new ServiceDistributionCheck().run(snapshot).orElseThrow();
-        assertEquals(Severity.MEDIUM, finding.severity());
+        Finding finding = CheckAssertions.assertFinding(
+                new ServiceDistributionCheck().run(snapshot),
+                Severity.MEDIUM
+        );
 
         Map<String, Object> evidence = finding.evidence();
+        assertNotNull(evidence);
         assertNotNull(evidence.get("issues"));
     }
 }

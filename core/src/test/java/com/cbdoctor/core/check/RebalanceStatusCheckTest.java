@@ -1,6 +1,7 @@
 package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.ClusterSnapshot;
+import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 import org.junit.jupiter.api.Test;
 
@@ -15,7 +16,40 @@ import static org.junit.jupiter.api.Assertions.*;
 class RebalanceStatusCheckTest {
 
     @Test
-    void shouldReturnEmpty_whenStatusNone() {
+    void shouldSkip_whenSnapshotIsNull() {
+        CheckAssertions.assertSkipped(new RebalanceStatusCheck().run(null));
+    }
+
+    @Test
+    void shouldSkip_whenStatusIsNull() {
+        ClusterSnapshot snapshot = new ClusterSnapshot(
+                "test",
+                Instant.now(),
+                null,
+                List.of(),
+                List.of(),
+                null
+        );
+
+        CheckAssertions.assertSkipped(new RebalanceStatusCheck().run(snapshot));
+    }
+
+    @Test
+    void shouldSkip_whenStatusIsBlank() {
+        ClusterSnapshot snapshot = new ClusterSnapshot(
+                "test",
+                Instant.now(),
+                "   ",
+                List.of(),
+                List.of(),
+                null
+        );
+
+        CheckAssertions.assertSkipped(new RebalanceStatusCheck().run(snapshot));
+    }
+
+    @Test
+    void shouldPass_whenStatusIsNone() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -25,11 +59,11 @@ class RebalanceStatusCheckTest {
                 null
         );
 
-        assertTrue(new RebalanceStatusCheck().run(snapshot).isEmpty());
+        CheckAssertions.assertPass(new RebalanceStatusCheck().run(snapshot));
     }
 
     @Test
-    void shouldReturnMedium_whenRunning() {
+    void shouldReturnMedium_whenStatusIsRunning() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -39,13 +73,16 @@ class RebalanceStatusCheckTest {
                 null
         );
 
-        var finding = new RebalanceStatusCheck().run(snapshot).orElseThrow();
-        assertEquals(Severity.MEDIUM, finding.severity());
+        Finding finding = CheckAssertions.assertFinding(
+                new RebalanceStatusCheck().run(snapshot),
+                Severity.MEDIUM
+        );
+
         assertTrue(finding.message().toLowerCase().contains("running"));
     }
 
     @Test
-    void shouldReturnMedium_whenUnknownValue() {
+    void shouldReturnMedium_whenStatusIsUnknown() {
         ClusterSnapshot snapshot = new ClusterSnapshot(
                 "test",
                 Instant.now(),
@@ -55,8 +92,11 @@ class RebalanceStatusCheckTest {
                 null
         );
 
-        var finding = new RebalanceStatusCheck().run(snapshot).orElseThrow();
-        assertEquals(Severity.MEDIUM, finding.severity());
+        Finding finding = CheckAssertions.assertFinding(
+                new RebalanceStatusCheck().run(snapshot),
+                Severity.MEDIUM
+        );
+
         assertTrue(finding.message().contains("weird_state"));
     }
 }

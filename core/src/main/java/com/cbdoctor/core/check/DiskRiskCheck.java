@@ -2,6 +2,7 @@ package com.cbdoctor.core.check;
 
 import com.cbdoctor.core.collector.ClusterSnapshot;
 import com.cbdoctor.core.collector.NodeInfo;
+import com.cbdoctor.core.engine.CheckResult;
 import com.cbdoctor.core.model.Finding;
 import com.cbdoctor.core.model.Severity;
 
@@ -9,7 +10,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.stream.Collectors;
 
 /**
@@ -34,27 +34,26 @@ public final class DiskRiskCheck implements Check {
     }
 
     @Override
-    public Optional<Finding> run(ClusterSnapshot snapshot) {
+    public CheckResult run(ClusterSnapshot snapshot) {
         if (snapshot == null || snapshot.nodes() == null || snapshot.nodes().isEmpty()) {
-            return Optional.empty();
+            return CheckResult.skipped(id(), name(), "Disk metrics not available (no nodes in snapshot).");
         }
 
-        List<NodeInfo> nodes = snapshot.nodes().stream()
-                .filter(Objects::nonNull)
+        List<NodeInfo> nodes = snapshot.nodes().stream().filter(Objects::nonNull).toList();
+        List<NodeInfo> withMetric = nodes.stream()
+                .filter(n -> n.diskUsedPercent() != null)
                 .toList();
 
-        boolean anyMetricPresent = nodes.stream().anyMatch(n -> n.diskUsedPercent() != null);
-        if (!anyMetricPresent) {
-            // Not enough data to evaluate
-            return Optional.empty();
+        if (withMetric.isEmpty()) {
+            return CheckResult.skipped(id(), name(), "Disk metrics not available (no nodes in snapshot).");
         }
 
-        List<NodeInfo> risky = nodes.stream()
-                .filter(n -> n.diskUsedPercent() != null && n.diskUsedPercent() > DEFAULT_THRESHOLD_PERCENT)
+        List<NodeInfo> risky = withMetric.stream()
+                .filter(n -> n.diskUsedPercent() >= DEFAULT_THRESHOLD_PERCENT)
                 .toList();
 
         if (risky.isEmpty()) {
-            return Optional.empty();
+            return CheckResult.pass();
         }
 
         String affected = risky.stream()
@@ -63,26 +62,17 @@ public final class DiskRiskCheck implements Check {
 
         Map<String, Object> evidence = new LinkedHashMap<>();
         evidence.put("thresholdPercent", DEFAULT_THRESHOLD_PERCENT);
-        evidence.put("riskyNodeCount", risky.size());
         evidence.put("riskyNodes", risky.stream()
-                .map(n -> Map.of(
-                        "hostname", safe(n.hostname()),
-                        "diskUsedPercent", n.diskUsedPercent()
-                ))
+                .map(n -> Map.of("hostname", n.hostname(), "diskUsedPercent", n.diskUsedPercent()))
                 .toList());
 
-        return Optional.of(new Finding(
+        return CheckResult.finding(new Finding(
                 id(),
                 Severity.MEDIUM,
                 name(),
                 "Disk usage is above " + DEFAULT_THRESHOLD_PERCENT + "% on: " + affected,
                 evidence,
-                "Investigate disk growth drivers (data, indexes, logs). " +
-                "Consider adding capacity, reducing retention, or rebalancing before disk becomes critical."
+                "Investigate disk growth drivers (data, indexes, logs) and add capacity if needed."
         ));
-    }
-
-    private static String safe(String s) {
-        return (s == null) ? "" : s;
     }
 }

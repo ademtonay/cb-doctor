@@ -32,7 +32,7 @@ public final class MgmtClusterInfoFetcher extends AbstractMgmtFetcher<ClusterInf
     /**
      * Parses node information from the "nodes" array.
      */
-    private static List<NodeInfo> parseNodes(JsonNode nodesNode) {
+    private List<NodeInfo> parseNodes(JsonNode nodesNode) {
         if (nodesNode == null || !nodesNode.isArray()) return List.of();
 
         List<NodeInfo> nodes = new ArrayList<>();
@@ -40,11 +40,9 @@ public final class MgmtClusterInfoFetcher extends AbstractMgmtFetcher<ClusterInf
             String hostnameRaw = text(n, "hostname", "");
             String hostname = stripPort(hostnameRaw);
 
-            // Node health is primarily determined by the "status" field
             String status = text(n, "status", "");
             boolean healthy = "healthy".equalsIgnoreCase(status);
 
-            // Some Couchbase versions indicate failure via clusterMembership
             String membership = text(n, "clusterMembership", "");
             if ("inactiveFailed".equalsIgnoreCase(membership)
                 || "inactiveAdded".equalsIgnoreCase(membership)) {
@@ -52,19 +50,34 @@ public final class MgmtClusterInfoFetcher extends AbstractMgmtFetcher<ClusterInf
             }
 
             Set<String> services = parseServices(n);
-            Double diskUsedPercent = parseDiskUsedPercent(n);
+
+            // Disk metrics are not reliably present in /pools/default nodes[].
+            // Fetch per-node details using otpNode and extract disk usage from there.
+            Double diskUsedPercent = null;
+            String otpNode = text(n, "otpNode", "");
+
+            if (!otpNode.isBlank()) {
+                try {
+                    JsonNode nodeDetails = client.getNodeByOtp(otpNode);
+                    diskUsedPercent = extractDiskUsedPercent(nodeDetails);
+                } catch (Exception ignored) {
+                    // Best-effort: keep diskUsedPercent as null if the node details cannot be fetched.
+                }
+            }
 
             nodes.add(new NodeInfo(
                     hostname,
-                    null,              // IP address is optional for MVP
+                    null,
                     services,
                     healthy,
                     diskUsedPercent
             ));
+
         }
 
         return List.copyOf(nodes);
     }
+
 
     /**
      * Extracts service names from different possible representations.
@@ -92,28 +105,4 @@ public final class MgmtClusterInfoFetcher extends AbstractMgmtFetcher<ClusterInf
 
         return Set.copyOf(out);
     }
-
-    /**
-     * Attempts to extract disk usage percentage using best-effort parsing.
-     */
-    private static Double parseDiskUsedPercent(JsonNode node) {
-        Double v = number(node, "diskUsedPercent");
-        if (v != null) return v;
-
-        JsonNode systemStats = node.get("systemStats");
-        if (systemStats != null) {
-            v = number(systemStats, "diskUsedPercent");
-            if (v != null) return v;
-        }
-
-        JsonNode interestingStats = node.get("interestingStats");
-        if (interestingStats != null) {
-            v = number(interestingStats, "diskUsedPercent");
-            return v;
-        }
-
-        return null;
-    }
-
-
 }
